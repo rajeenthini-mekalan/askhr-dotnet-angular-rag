@@ -1,0 +1,44 @@
+# ---------- Secrets (never commit) ----------
+# Real passwords live in .env files; only the *.example templates are committed.
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+appsettings.*.local.json
+appsettings.Development.json
+
+# ---------- .NET ----------
+bin/
+obj/
+*.user
+*.suo
+*.rsuser
+.vs/
+TestResults/
+*.trx
+coverage*.xml
+*.coverage
+
+# ---------- Node / Angular ----------
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-error.log*
+
+# ---------- IDEs ----------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ---------- OS ----------
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------- Local Docker data (if ever bind-mounted) ----------
+deploy/data/
