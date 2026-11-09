@@ -1,0 +1,82 @@
+# AskHR local infrastructure.
+#
+#   cd deploy
+#   copy .env.example .env      # then put real passwords in .env (git-ignored)
+#   docker compose up -d        # SQL Server 2025 + Keycloak
+#
+# Ollama runs natively on Windows by default (better on an 8 GB machine).
+# On a machine with more RAM you can run it in Docker instead:
+#   docker compose --profile ollama up -d    # stop the native Ollama first: same port 11434
+
+name: askhr
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04
+    container_name: askhr-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer                 # free edition with all features, not for production
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:?Set SQL_SA_PASSWORD in deploy/.env}
+      MSSQL_MEMORY_LIMIT_MB: "2048"        # stop SQL Server taking all the RAM it can see
+    ports:
+      - "${SQL_PORT:-14333}:1433"          # 14333 on the host: avoids clashing with a local SQL Server on 1433
+    volumes:
+      - sqlserver_data:/var/opt/mssql      # databases survive "docker compose down"
+    deploy:
+      resources:
+        limits:
+          memory: 2560M
+    healthcheck:
+      # $$ = a literal $ for Compose, so the shell inside the container reads its own env var
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    container_name: askhr-keycloak
+    command: ["start-dev"]                 # dev mode: HTTP, built-in file DB; realm import is added in M1
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in deploy/.env}
+      KC_HEALTH_ENABLED: "true"            # /health/ready on the management port 9000
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data   # realms and users survive restarts
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      # The image has no curl, so speak HTTP over bash's /dev/tcp
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.40.15
+    container_name: askhr-ollama
+    profiles: ["ollama"]                   # off unless you pass --profile ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama        # downloaded models survive restarts
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+  keycloak_data:
+  ollama_models:
