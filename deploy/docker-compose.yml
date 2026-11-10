@@ -39,8 +39,13 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.2
     container_name: askhr-keycloak
-    command: ["start-dev"]                 # dev mode: HTTP, built-in file DB; realm import is added in M1
+    # dev mode (HTTP, built-in file DB). --import-realm loads every *.json in /opt/keycloak/data/import
+    # at startup, but skips a realm that already exists: to re-import, remove the keycloak_data volume.
+    command: ["start-dev", "--import-realm"]
     environment:
+      # ${...} placeholders inside askhr-realm.json are resolved from these container env vars at import time
+      ASKHR_DEMO_ADMIN_PASSWORD: ${ASKHR_DEMO_ADMIN_PASSWORD:?Set ASKHR_DEMO_ADMIN_PASSWORD in deploy/.env}
+      ASKHR_DEMO_EMPLOYEE_PASSWORD: ${ASKHR_DEMO_EMPLOYEE_PASSWORD:?Set ASKHR_DEMO_EMPLOYEE_PASSWORD in deploy/.env}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in deploy/.env}
       KC_HEALTH_ENABLED: "true"            # /health/ready on the management port 9000
@@ -48,6 +53,7 @@ services:
       - "${KEYCLOAK_PORT:-8080}:8080"
     volumes:
       - keycloak_data:/opt/keycloak/data   # realms and users survive restarts
+      - ./keycloak:/opt/keycloak/data/import:ro   # askhr-realm.json, read-only
     deploy:
       resources:
         limits:
