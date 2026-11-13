@@ -9,10 +9,16 @@
 
 .EXAMPLE
   ./deploy/get-token.ps1 employee -Decode   # print the token's claims instead of the token
+
+.EXAMPLE
+  ./deploy/get-token.ps1 admin -SaveForHttp
+  # Writes ASKHR_TOKEN=... to backend/src/AskHR.Api/.env (git-ignored), which AskHR.Api.http reads with {{$dotenv ASKHR_TOKEN}}.
+  # The token never has to be pasted into a tracked file.
 #>
 param(
     [Parameter(Mandatory)][ValidateSet('admin', 'employee')][string]$User,
     [switch]$Decode,
+    [switch]$SaveForHttp,
     [string]$Keycloak = 'http://localhost:8080'
 )
 
@@ -30,6 +36,15 @@ $response = Invoke-RestMethod -Method Post -Uri "$Keycloak/realms/askhr/protocol
     scope      = 'openid'
     username   = $username
     password   = $password
+}
+
+if ($SaveForHttp) {
+    $httpEnv = Join-Path $PSScriptRoot '..ackend\src\AskHR.Api\.env'
+    # Same folder as AskHR.Api.http. Ignored by the ".env" rule in .gitignore, so it can never be committed.
+    Set-Content -Path $httpEnv -Value "ASKHR_TOKEN=$($response.access_token)" -Encoding ascii -NoNewline
+    $expires = (Get-Date).AddSeconds($response.expires_in).ToString('HH:mm:ss')
+    Write-Host "Saved a $User token for AskHR.Api.http (valid until $expires). Send the request again."
+    return
 }
 
 if (-not $Decode) { return $response.access_token }

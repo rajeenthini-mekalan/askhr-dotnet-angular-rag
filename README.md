@@ -61,7 +61,8 @@ curl.exe -k -H "Authorization: Bearer $t" -F "file=@docs/samples/lumora-leave-an
 curl.exe -k -H "Authorization: Bearer $t" https://localhost:7124/api/documents
 ```
 
-The same requests are in `backend/src/AskHR.Api/AskHR.Api.http`. In Development, the Hangfire dashboard is at
+The same requests are in `backend/src/AskHR.Api/AskHR.Api.http`. Run `./deploy/get-token.ps1 admin -SaveForHttp` first: it writes the token to
+`backend/src/AskHR.Api/.env` (git-ignored), and the `.http` file reads it with `{{$dotenv ASKHR_TOKEN}}`, so no token is ever pasted into a tracked file. In Development, the Hangfire dashboard is at
 `https://localhost:7124/hangfire?access_token=<admin token>` (hr-admin only; the token is then kept in a 5-minute cookie).
 
 ## How ingestion works (M3)
