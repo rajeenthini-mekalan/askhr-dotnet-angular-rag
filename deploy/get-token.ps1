@@ -39,11 +39,11 @@ $response = Invoke-RestMethod -Method Post -Uri "$Keycloak/realms/askhr/protocol
 }
 
 if ($SaveForHttp) {
-    $httpEnv = Join-Path $PSScriptRoot '..ackend\src\AskHR.Api\.env'
+    $httpEnv = [IO.Path]::Combine($PSScriptRoot, '..', 'backend', 'src', 'AskHR.Api', '.env')
     # Same folder as AskHR.Api.http. Ignored by the ".env" rule in .gitignore, so it can never be committed.
-    Set-Content -Path $httpEnv -Value "ASKHR_TOKEN=$($response.access_token)" -Encoding ascii -NoNewline
+    Set-Content -Path $httpEnv -Value "ASKHR_TOKEN=$($response.access_token)" -Encoding ascii -NoNewline -ErrorAction Stop
     $expires = (Get-Date).AddSeconds($response.expires_in).ToString('HH:mm:ss')
-    Write-Host "Saved a $User token for AskHR.Api.http (valid until $expires). Send the request again."
+    Write-Host "Saved the $User token for AskHR.Api.http (valid until $expires). Send the request again."
     return
 }
 
