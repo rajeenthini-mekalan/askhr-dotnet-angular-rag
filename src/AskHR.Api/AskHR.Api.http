@@ -1,6 +1,10 @@
-@AskHR.Api_HostAddress = http://localhost:5062
+# Use HTTPS. With the "https" launch profile, http://localhost:5062 answers 307 -> https://localhost:7124,
+# and clients drop the Authorization header when they follow a redirect, so every /api call would return 401.
+@AskHR.Api_HostAddress = https://localhost:7124
 
-# Paste a dev token here (never commit a real one): ./deploy/get-token.ps1 employee | Set-Clipboard
+# Paste the token text itself (a long "eyJ..." string), not a script name or flag. Never commit a real token.
+# From the main repo folder (deploy/.env lives there):  ./deploy/get-token.ps1 employee | Set-Clipboard
+# Tokens expire after 5 minutes; fetch a new one when you get 401.
 @token = paste-token-here
 
 GET {{AskHR.Api_HostAddress}}/health
