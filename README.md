@@ -31,8 +31,9 @@ Prerequisites: Docker Desktop (WSL 2), .NET 10 SDK, Node 24 + Angular CLI, [Olla
 2. Start SQL Server 2025 and Keycloak: `docker compose -f deploy/docker-compose.yml up -d`
    On first start Keycloak imports the `askhr` realm from `deploy/keycloak/askhr-realm.json` (roles, clients, demo users).
 3. Pull the models: `ollama pull llama3.2:3b` and `ollama pull nomic-embed-text`
-4. Run the API: `dotnet run --project src/AskHR.Api --launch-profile https` → https://localhost:7124/health returns `Healthy`
-5. Run the web app: `cd src/askhr-web && npm install && npx ng serve` → http://localhost:4200 (`/api` is proxied to the API)
+4. Run the API: `dotnet run --project backend/src/AskHR.Api --launch-profile https` → https://localhost:7124/health returns `Healthy`
+   (or open `backend/AskHR.slnx` in Visual Studio and run the `https` profile)
+5. Run the web app: `cd frontend && npm install && npx ng serve` → http://localhost:4200 (`/api` is proxied to the API)
 6. Sign in as `admin@askhr.demo` (HR Admin) or `employee@askhr.demo` (Employee) with the passwords from `deploy/.env`.
 
 Optional API check from PowerShell (dev only, uses the `askhr-devtools` client):
@@ -46,7 +47,15 @@ Invoke-RestMethod -Method Post https://localhost:7124/api/chat -Headers @{ Autho
   -ContentType 'application/json' -Body '{"question":"Can I carry over unused annual leave?"}'
 ```
 
-The model, URL, temperature and answer length are set in the `Ai` section of `src/AskHR.Api/appsettings.json`.
+The model, URL, temperature and answer length are set in the `Ai` section of `backend/src/AskHR.Api/appsettings.json`.
+
+## Repository layout
+
+```
+backend/    .NET 10 API — AskHR.slnx, src/ (Api, Application, Domain, Infrastructure), tests/
+frontend/   Angular 22 app
+deploy/     Docker Compose, Keycloak realm, dev token script
+```
 `/health` reports `Degraded` (still HTTP 200) when Ollama is not running or the chat model is not pulled.
 
 > Changed the realm file or the demo passwords? The import only runs on an empty Keycloak volume:
