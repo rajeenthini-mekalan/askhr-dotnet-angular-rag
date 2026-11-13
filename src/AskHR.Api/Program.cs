@@ -1,10 +1,18 @@
 using AskHR.Api.Auth;
+using AskHR.Api.Chat;
+using AskHR.Application.Chat;
+using AskHR.Infrastructure.Ai;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
-builder.Services.AddHealthChecks();   // SQL Server, Keycloak and Ollama checks are added in later milestones
+builder.Services.AddProblemDetails();
+builder.Services.AddHealthChecks();   // SQL Server and Keycloak checks come in later milestones
+
+// ---------- AI: IChatClient backed by local Ollama (Infrastructure) + the use case (Application) ----------
+builder.Services.AddAskHrAi();        // also adds the "ollama" health check
+builder.Services.AddScoped<AskQuestion>();
 
 // ---------- Authentication: Keycloak access tokens (JWT) ----------
 var auth = builder.Configuration.GetSection(AuthOptions.Section).Get<AuthOptions>()
@@ -53,5 +61,7 @@ var api = app.MapGroup("/api").RequireAuthorization();   // every /api endpoint 
 api.MapGet("/documents", () => Results.Ok(Array.Empty<object>()))
    .RequireAuthorization(Policies.HrAdmin)
    .WithName("ListDocuments");
+
+api.MapChatEndpoints();   // POST /api/chat (Employee policy)
 
 app.Run();

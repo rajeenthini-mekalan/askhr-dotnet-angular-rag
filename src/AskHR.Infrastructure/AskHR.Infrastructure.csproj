@@ -5,6 +5,16 @@
     <ProjectReference Include="..\AskHR.Domain\AskHR.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" Version="11.0.0" />
+    <PackageReference Include="OllamaSharp" Version="5.5.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Options validation, IHttpClientFactory and health checks come from the ASP.NET Core shared framework. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

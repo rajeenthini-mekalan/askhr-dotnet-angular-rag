@@ -1,5 +1,19 @@
 @AskHR.Api_HostAddress = http://localhost:5062
 
+# Paste a dev token here (never commit a real one): ./deploy/get-token.ps1 employee | Set-Clipboard
+@token = paste-token-here
+
 GET {{AskHR.Api_HostAddress}}/health
+
+###
+
+# M2: ask the local model a question (Employee or HR Admin token). The first call loads the model and is slow.
+POST {{AskHR.Api_HostAddress}}/api/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "question": "Can I carry over unused annual leave to next year?"
+}
 
 ###

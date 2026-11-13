@@ -1,11 +1,11 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
+using AskHR.Tests.Auth;
 
 namespace AskHR.Tests;
 
 // WebApplicationFactory boots the real API in memory (no port, no Docker) so tests can call it over HTTP.
-public class HealthEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+// TestAuthApiFactory also swaps out Ollama, so this test needs no running model.
+public class HealthEndpointTests(TestAuthApiFactory factory) : IClassFixture<TestAuthApiFactory>
 {
     [Fact]
     public async Task Health_returns_200_Healthy()

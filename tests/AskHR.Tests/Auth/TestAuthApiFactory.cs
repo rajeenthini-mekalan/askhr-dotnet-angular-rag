@@ -1,9 +1,13 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using AskHR.Tests.Fakes;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -14,7 +18,7 @@ namespace AskHR.Tests.Auth;
 /// <summary>
 /// Boots the real API but makes the JWT bearer handler trust a test RSA key instead of Keycloak's JWKS.
 /// Everything else (audience check, lifetime check, "roles" claim mapping, policies) is the production code path,
-/// so these tests need no running Keycloak.
+/// so these tests need no running Keycloak. IChatClient is a <see cref="FakeChatClient"/>, so no Ollama is needed either.
 /// </summary>
 public sealed class TestAuthApiFactory : WebApplicationFactory<Program>
 {
@@ -36,8 +40,22 @@ public sealed class TestAuthApiFactory : WebApplicationFactory<Program>
                 options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(config);
                 options.TokenValidationParameters.ValidIssuer = Issuer;
             });
+
+            // Never call the real model from tests: replace the whole Ollama pipeline with a fake.
+            services.RemoveAll<IChatClient>();
+            services.AddSingleton<IChatClient>(ChatClient);
+
+            // The Ollama health check would depend on a local Ollama; drop it so /health is deterministic in CI.
+            // (OllamaHealthCheck has its own unit tests.)
+            services.Configure<HealthCheckServiceOptions>(options =>
+            {
+                foreach (var r in options.Registrations.Where(r => r.Name == "ollama").ToList())
+                    options.Registrations.Remove(r);
+            });
         });
     }
+
+    public FakeChatClient ChatClient { get; } = new();
 
     /// <summary>Creates a signed access token shaped like a Keycloak one.</summary>
     public string CreateToken(string username, string[] roles, string audience = Audience)
