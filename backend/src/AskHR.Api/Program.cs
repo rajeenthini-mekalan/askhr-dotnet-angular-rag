@@ -1,18 +1,26 @@
 using AskHR.Api.Auth;
 using AskHR.Api.Chat;
+using AskHR.Api.Documents;
 using AskHR.Application.Chat;
 using AskHR.Infrastructure.Ai;
+using AskHR.Infrastructure.Ingestion;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
-builder.Services.AddHealthChecks();   // SQL Server and Keycloak checks come in later milestones
+builder.Services.AddHealthChecks();   // "ollama" and "sql" checks are added below; Keycloak comes later
 
 // ---------- AI: IChatClient backed by local Ollama (Infrastructure) + the use case (Application) ----------
 builder.Services.AddAskHrAi();        // also adds the "ollama" health check
 builder.Services.AddScoped<AskQuestion>();
+
+// ---------- Documents: EF Core on SQL Server + upload/ingestion use cases + Hangfire (Infrastructure) ----------
+builder.Services.AddAskHrPersistence();                       // connection string "AskHr" from user secrets / env vars
+builder.Services.AddAskHrIngestion(builder.Configuration);    // "Ingestion" section: worker count, server, dashboard
+var ingestion = builder.Configuration.GetSection(IngestionOptions.Section).Get<IngestionOptions>() ?? new();
+var mapHangfireDashboard = builder.Environment.IsDevelopment() && ingestion.Dashboard;
 
 // ---------- Authentication: Keycloak access tokens (JWT) ----------
 var auth = builder.Configuration.GetSection(AuthOptions.Section).Get<AuthOptions>()
@@ -35,6 +43,10 @@ builder.Services
         // The realm sends realm roles as a flat "roles" array (a protocol mapper in askhr-realm.json),
         // so pointing RoleClaimType at it makes User.IsInRole("hr-admin") and RequireRole work.
         options.TokenValidationParameters.RoleClaimType = "roles";
+
+        // Development only: let the browser-opened Hangfire dashboard pass its token in the URL once (see HangfireDashboard).
+        if (mapHangfireDashboard)
+            HangfireDashboard.AllowDashboardTokenFromQueryOrCookie(options.Events = new JwtBearerEvents());
     });
 
 builder.Services.AddAuthorizationBuilder()
@@ -57,11 +69,10 @@ app.MapHealthChecks("/health").AllowAnonymous();
 
 var api = app.MapGroup("/api").RequireAuthorization();   // every /api endpoint needs a valid token by default
 
-// Placeholder until M3: proves the role check end to end.
-api.MapGet("/documents", () => Results.Ok(Array.Empty<object>()))
-   .RequireAuthorization(Policies.HrAdmin)
-   .WithName("ListDocuments");
+api.MapDocumentEndpoints();   // /api/documents: upload, list, get, delete (HrAdmin policy)
+api.MapChatEndpoints();       // POST /api/chat (Employee policy)
 
-api.MapChatEndpoints();   // POST /api/chat (Employee policy)
+if (mapHangfireDashboard)
+    app.MapAskHrHangfireDashboard();   // /hangfire, hr-admin only
 
 app.Run();

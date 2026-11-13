@@ -21,3 +21,38 @@ Content-Type: application/json
 }
 
 ###
+
+# ---------- M3: documents (HR Admin token: ./deploy/get-token.ps1 admin | Set-Clipboard) ----------
+
+# Upload the invented sample policy. Returns 202 Accepted at once; a Hangfire job extracts and chunks it.
+# @name upload
+POST {{AskHR.Api_HostAddress}}/api/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=AskHrBoundary
+
+--AskHrBoundary
+Content-Disposition: form-data; name="file"; filename="lumora-leave-and-remote-work-policy.pdf"
+Content-Type: application/pdf
+
+< ../../../docs/samples/lumora-leave-and-remote-work-policy.pdf
+--AskHrBoundary--
+
+###
+
+# Poll the uploaded document (the Location header of the 202): Processing -> Ready (or Failed + failureReason).
+GET {{upload.response.headers.Location}}
+Authorization: Bearer {{token}}
+
+###
+
+# List all documents, newest first.
+GET {{AskHR.Api_HostAddress}}/api/documents
+Authorization: Bearer {{token}}
+
+###
+
+# Delete the uploaded document; SQL Server cascades the delete to its file and chunks. 204, then 404 on a repeat.
+DELETE {{AskHR.Api_HostAddress}}/api/documents/{{upload.response.body.$.id}}
+Authorization: Bearer {{token}}
+
+###

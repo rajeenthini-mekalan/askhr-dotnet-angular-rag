@@ -1,9 +1,13 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using AskHR.Application.Abstractions;
+using AskHR.Infrastructure.Persistence;
 using AskHR.Tests.Fakes;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -19,6 +23,7 @@ namespace AskHR.Tests.Auth;
 /// Boots the real API but makes the JWT bearer handler trust a test RSA key instead of Keycloak's JWKS.
 /// Everything else (audience check, lifetime check, "roles" claim mapping, policies) is the production code path,
 /// so these tests need no running Keycloak. IChatClient is a <see cref="FakeChatClient"/>, so no Ollama is needed either.
+/// The database is in-memory SQLite and Hangfire is replaced by <see cref="FakeIngestionQueue"/>, so no SQL Server either.
 /// </summary>
 public sealed class TestAuthApiFactory : WebApplicationFactory<Program>
 {
@@ -27,10 +32,25 @@ public sealed class TestAuthApiFactory : WebApplicationFactory<Program>
 
     private readonly RsaSecurityKey _key = new(RSA.Create(2048)) { KeyId = "test-key" };
 
+    private readonly SqliteTestDatabase _database = new();
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        // Read by Program before the host is built: no Hangfire workers and no dashboard in tests.
+        builder.UseSetting("Ingestion:RunServer", "false");
+        builder.UseSetting("Ingestion:Dashboard", "false");
+
         builder.ConfigureTestServices(services =>
         {
+            // Swap SQL Server for SQLite. EF Core 9+ also keeps the UseSqlServer(...) callback as an
+            // IDbContextOptionsConfiguration, which must go too, or the context would have two providers.
+            services.RemoveAll<DbContextOptions<AskHrDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<AskHrDbContext>>();
+            services.AddDbContext<AskHrDbContext>(options => options.UseSqlite(_database.Connection));
+
+            services.RemoveAll<IIngestionQueue>();
+            services.AddSingleton<IIngestionQueue>(IngestionQueue);
+
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 // Replace "download metadata from the Authority" with a fixed, in-memory configuration.
@@ -56,6 +76,18 @@ public sealed class TestAuthApiFactory : WebApplicationFactory<Program>
     }
 
     public FakeChatClient ChatClient { get; } = new();
+
+    public FakeIngestionQueue IngestionQueue { get; } = new();
+
+    /// <summary>A context on the same in-memory database the API uses, for arranging and asserting.</summary>
+    public AskHrDbContext CreateDbContext() => _database.CreateContext();
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+            _database.Dispose();
+    }
 
     /// <summary>Creates a signed access token shaped like a Keycloak one.</summary>
     public string CreateToken(string username, string[] roles, string audience = Audience)
